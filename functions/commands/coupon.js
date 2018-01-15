@@ -1,6 +1,7 @@
 const {DateTime} = require('luxon');
 const lib = require('lib')({token: process.env.STDLIB_TOKEN});
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+const storage = require('../../helpers/storage');
 
 const VALUES = {
   '1mo': {
@@ -56,6 +57,7 @@ module.exports = (
       ).join(', ')}`,
       attachments: [],
     });
+    return;
   }
   if (!EXPIRATIONS.hasOwnProperty(expiration)) {
     callback(null, {
@@ -64,76 +66,87 @@ module.exports = (
       ).join(', ')}`,
       attachments: [],
     });
+    return;
   }
 
-  stripe.coupons
-    .create(
-      Object.assign(
-        {
-          id: couponName,
-          metadata: {createdWith: text, createdBy: user, createdIn: channel},
-        },
-        VALUES[couponValue],
-        EXPIRATIONS[expiration]()
+  storage.getStripeKey(command.team_id, (err, stripeKey) => {
+    if (err || !stripeKey) {
+      callback(null, {
+        text: `<@${user}> We have no Stripe API key on file for your Slack. Use the /set_stripe_key command.`,
+      });
+      return;
+    }
+
+    const stripe = require('stripe')(stripeKey);
+    stripe.coupons
+      .create(
+        Object.assign(
+          {
+            id: couponName,
+            metadata: {createdWith: text, createdBy: user, createdIn: channel},
+          },
+          VALUES[couponValue],
+          EXPIRATIONS[expiration]()
+        )
       )
-    )
-    .then(
-      coupon => {
-        callback(null, {
-          text: `<@${user}> Your coupon code has arrived!`,
-          attachments: [
-            {
-              color: '#52d1c7',
-              title: 'Stripe coupon code',
-              title_link: `https://dashboard.stripe.com/coupons/${encodeURIComponent(
-                couponName
-              )}`,
-              text: coupon.id,
-              fields: [
-                {
-                  title: 'Expires',
-                  value: DateTime.fromMillis(
-                    coupon.redeem_by * 1000
-                  ).toFormat('MMM d, y'),
-                  short: true,
-                },
-                {
-                  title: 'Max uses',
-                  value: coupon.max_redemptions,
-                  short: true,
-                },
-                coupon.amount_off && {
-                  title: 'Amount',
-                  value: `$${(coupon.amount_off / 100).toFixed(2)}`,
-                  short: true,
-                },
-                coupon.duration === 'repeating'
-                  ? {
-                      title: 'Duration',
-                      value: `${coupon.duration_in_months} months`,
-                      short: true,
-                    }
-                  : {
-                      title: 'Duration',
-                      value: 'Once',
-                      short: true,
-                    },
-              ].filter(x => x),
-            },
-          ],
-        });
-      },
-      err => {
-        callback(null, {
-          text: `<@${user}> There was a problem creating the coupon code.`,
-          attachments: [
-            {
-              color: 'danger',
-              title: 'Stripe error',
-              text: err.message || 'Unknown error 🤷‍♂️',
-            },
-          ],
-        });
-      }
-    );
+      .then(
+        coupon => {
+          callback(null, {
+            text: `<@${user}> Your coupon code has arrived!`,
+            attachments: [
+              {
+                color: '#52d1c7',
+                title: 'Stripe coupon code',
+                title_link: `https://dashboard.stripe.com/coupons/${encodeURIComponent(
+                  couponName
+                )}`,
+                text: coupon.id,
+                fields: [
+                  {
+                    title: 'Expires',
+                    value: DateTime.fromMillis(
+                      coupon.redeem_by * 1000
+                    ).toFormat('MMM d, y'),
+                    short: true,
+                  },
+                  {
+                    title: 'Max uses',
+                    value: coupon.max_redemptions,
+                    short: true,
+                  },
+                  coupon.amount_off && {
+                    title: 'Amount',
+                    value: `$${(coupon.amount_off / 100).toFixed(2)}`,
+                    short: true,
+                  },
+                  coupon.duration === 'repeating'
+                    ? {
+                        title: 'Duration',
+                        value: `${coupon.duration_in_months} months`,
+                        short: true,
+                      }
+                    : {
+                        title: 'Duration',
+                        value: 'Once',
+                        short: true,
+                      },
+                ].filter(x => x),
+              },
+            ],
+          });
+        },
+        err => {
+          callback(null, {
+            text: `<@${user}> There was a problem creating the coupon code.`,
+            attachments: [
+              {
+                color: 'danger',
+                title: 'Stripe error',
+                text: err.message || 'Unknown error 🤷‍♂️',
+              },
+            ],
+          });
+        }
+      );
+  });
 };

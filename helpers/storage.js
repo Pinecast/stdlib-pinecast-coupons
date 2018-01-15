@@ -9,7 +9,10 @@ const lib = require('lib')({token: process.env.STDLIB_TOKEN});
 
 function formatTeamKey(teamId) {
   return `SLACK::${process.env.SLACK_APP_NAME}::${teamId}`;
-};
+}
+function formatSlackKey(teamId) {
+  return `STRIPE::${teamId}`;
+}
 
 const CACHE = {};
 
@@ -32,5 +35,12 @@ module.exports = {
       }
       callback(err, value);
     });
-  }
+  },
+
+  setStripeKey: (teamId, key, callback) => {
+    lib.utils.storage.set(formatSlackKey(teamId), key, callback);
+  },
+  getStripeKey: (teamId, callback) => {
+    lib.utils.storage.get(formatSlackKey(teamId), callback);
+  },
 };

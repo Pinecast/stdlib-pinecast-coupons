@@ -34,7 +34,7 @@ module.exports = (context, callback) => {
         channel: command.channel_id,
         text: command.text,
         command: command,
-        botToken: botToken
+        botToken: botToken,
       },
       (err, result) => {
         if (err) {
@@ -42,17 +42,12 @@ module.exports = (context, callback) => {
             botToken,
             command.channel_id,
             {
-              text: err.message
+              text: err.message,
             },
             callback
           );
         } else {
-          message(
-            botToken,
-            command.channel_id,
-            result,
-            callback
-          );
+          message(botToken, command.channel_id, result, callback);
         }
       }
     );
